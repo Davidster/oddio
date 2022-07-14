@@ -21,3 +21,4 @@ libm = { version = "0.2.1", optional = true }
 [dev-dependencies]
 cpal = "0.13.1"
 hound = "3.4"
+minimp3 = "0.5.1"
