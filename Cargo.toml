@@ -21,4 +21,3 @@ libm = { version = "0.2.1", optional = true }
 [dev-dependencies]
 cpal = "0.13.1"
 hound = "3.4"
-dasp = { version = "0.11.0", features = [ "signal", "interpolate", "interpolate-sinc", "interpolate-linear", "ring_buffer" ] }

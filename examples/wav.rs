@@ -7,10 +7,13 @@ fn main() {
     let device = host
         .default_output_device()
         .expect("no output device available");
-    let device_sample_rate = device.default_output_config().unwrap().sample_rate();
+    let device_sample_rate = device.default_output_config().unwrap().sample_rate().0;
 
-    let mut reader = hound::WavReader::new(include_bytes!("stereo-test/stereo-test.wav").as_ref())
-        .expect("Failed to read WAV file");
+    let mut reader = hound::WavReader::new(
+        include_bytes!("stereo-test/output_2.wav").as_ref(),
+        // include_bytes!("stereo-test/stereo-test-huge-sample-rate.wav").as_ref(),
+    )
+    .expect("Failed to read WAV file");
 
     // get metadata from the WAV file
     let hound::WavSpec {
@@ -43,41 +46,48 @@ fn main() {
     let mut samples = samples_result.unwrap();
     let mut samples_stereo: Vec<_> = oddio::frame_stereo(&mut samples).to_vec();
 
-    if device_sample_rate.0 != source_sample_rate {
-        use dasp::interpolate::linear::Linear;
-        use dasp::interpolate::sinc::Sinc;
-        use dasp::signal::interpolate::Converter;
-        use dasp::Signal;
+    dbg!(samples_stereo.len());
 
-        let interpolator = {
-            // sinc interpolation
-            // let first_8_samples = samples_stereo.iter().take(4).copied().collect::<Vec<_>>();
-            let sinc_interpolator = Sinc::new(dasp::ring_buffer::Fixed::from([[0f32; 2]; 2]));
-            // linear interpolation
-            let _linear_interpolator = Linear::new(samples_stereo[0], samples_stereo[1]);
-            sinc_interpolator
-        };
-
-        // resample the sound to the device's sample rate
-        let resampled = Converter::from_hz_to_hz(
-            dasp::signal::from_iter(samples_stereo),
-            interpolator,
-            source_sample_rate.into(),
-            device_sample_rate.0.into(),
-        );
-        samples_stereo = resampled.until_exhausted().collect();
+    if device_sample_rate != source_sample_rate {
+        // resample the sound to the device sample rate using linear interpolation
+        let old_sample_count = samples_stereo.len();
+        let new_sample_count = (length_seconds * device_sample_rate as f32).ceil() as usize;
+        let new_samples: Vec<_> = (1..new_sample_count + 1)
+            .map(|new_sample_number| {
+                let old_sample_number = new_sample_number as f32
+                    * (source_sample_rate as f32 / device_sample_rate as f32);
+                let left_index = old_sample_number
+                    .max(1.0)
+                    .min(old_sample_count as f32)
+                    .floor() as usize
+                    - 1;
+                let right_index = (left_index + 1).min(old_sample_count - 1);
+                let left_sample = samples_stereo[left_index];
+                if left_index == right_index {
+                    [left_sample[0], left_sample[1]]
+                } else {
+                    let right_sample = samples_stereo[right_index];
+                    let t = old_sample_number % 1.0;
+                    [
+                        (1.0 - t) * left_sample[0] + t * right_sample[0],
+                        (1.0 - t) * left_sample[1] + t * right_sample[1],
+                    ]
+                }
+            })
+            .collect();
+        samples_stereo = new_samples;
     }
-    let final_sample_rate = device_sample_rate.0;
-    // let final_sample_rate = source_sample_rate;
+
+    dbg!(samples_stereo.len());
 
     // channels are interleaved, so we put them together
-    let sound_frames = oddio::Frames::from_iter(final_sample_rate, samples_stereo);
+    let sound_frames = oddio::Frames::from_iter(device_sample_rate, samples_stereo);
 
     let (mut mixer_handle, mixer) = oddio::split(oddio::Mixer::new());
 
     let config = cpal::StreamConfig {
         channels: 2,
-        sample_rate: cpal::SampleRate(final_sample_rate),
+        sample_rate: cpal::SampleRate(device_sample_rate),
         buffer_size: cpal::BufferSize::Default,
     };
 
@@ -86,7 +96,7 @@ fn main() {
             &config,
             move |out_flat: &mut [f32], _: &cpal::OutputCallbackInfo| {
                 let out_stereo = oddio::frame_stereo(out_flat);
-                oddio::run(&mixer, final_sample_rate, out_stereo);
+                oddio::run(&mixer, device_sample_rate, out_stereo);
             },
             move |err| {
                 eprintln!("{}", err);
