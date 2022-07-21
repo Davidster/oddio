@@ -39,9 +39,13 @@ fn main() {
 
     // Start a 200Hz sine wave. We can do this as many times as we like, whenever we like, with
     // different types of signals as needed.
-    mixer_handle
-        .control::<oddio::Mixer<_>, _>()
-        .play(oddio::MonoToStereo::new(oddio::Sine::new(0.0, 400.0)));
+    let mut signal_handle =
+        mixer_handle
+            .control::<oddio::Mixer<_>, _>()
+            .play(oddio::FixedGain::new(
+                oddio::MonoToStereo::new(oddio::Sine::new(0.0, 400.0)),
+                -75.0,
+            ));
 
     // Wait a bit before exiting
     thread::sleep(Duration::from_secs(3));

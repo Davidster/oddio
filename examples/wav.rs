@@ -99,7 +99,7 @@ fn main() {
         .unwrap();
     stream.play().unwrap();
 
-    mixer_handle
+    let yo = mixer_handle
         .control::<oddio::Mixer<_>, _>()
         .play(oddio::FramesSignal::from(sound_frames));
 

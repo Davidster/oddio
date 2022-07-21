@@ -21,7 +21,8 @@ fn main() {
     };
 
     let mut decoder = minimp3::Decoder::new(
-        std::fs::File::open("/home/david/Programming/oddio/stereo-test.mp3").unwrap(),
+        std::fs::File::open("/home/david/Downloads/Shiro_Sagisu-Expansion_of_Blockade.mp3")
+            .unwrap(),
     );
     let mut mp3_stereo_frames: Vec<minimp3::Frame> = Vec::new();
     loop {
@@ -91,7 +92,7 @@ fn main() {
         .unwrap();
 
     stream.play().unwrap();
-    background_stream.play().unwrap();
+    // background_stream.play().unwrap();
 
     // Let's make some audio.
     // Here, we're manually constructing a sound, which might otherwise be e.g. decoded from an mp3.
